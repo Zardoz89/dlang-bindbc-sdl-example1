@@ -1,4 +1,5 @@
 import std.stdio;
+import std.string : fromStringz;
 import std.conv;
 
 import bindbc.sdl;
@@ -21,13 +22,19 @@ void main()
 
     // Initialise SDL
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        writeln("SDL_Init: ", SDL_GetError());
+        writeln("SDL_Init: ", fromStringz(SDL_GetError()));
+    }
+    scope(exit) {
+      SDL_Quit();
     }
 
     // Initialise IMG
     int flags = IMG_INIT_PNG | IMG_INIT_JPG;
     if ((IMG_Init(flags) & flags) != flags) {
         writeln("IMG_Init: ", to!string(IMG_GetError()));
+    }
+    scope(exit) {
+      IMG_Quit();
     }
 
     // Load image
@@ -50,31 +57,33 @@ void main()
         return;
     }
 
-    // Get the window surface
-    SDL_Surface *winSurf = SDL_GetWindowSurface(appWin);
-    if (winSurf is null) {
-        writeln("SDL_GetWindowSurface: ", SDL_GetError());
+    //Create and init the renderer
+    SDL_Renderer* ren = SDL_CreateRenderer(appWin, -1, SDL_RENDERER_ACCELERATED);
+    if( ren is null) {
+        writefln("SDL_CreateRenderer: ", fromStringz(SDL_GetError()));
+        return;
     }
 
-    // Define a colour for the surface, based on RGB values
-    int colour = SDL_MapRGB(winSurf.format, 0xFF, 0xFF, 0xFF);
 
-    // Fill the window surface with the colour
-    SDL_FillRect(winSurf, null, colour);
-
-    // Copy loaded image to window surface
-    SDL_Rect dstRect;
-    dstRect.x = padding;
-    dstRect.y = padding;
-    SDL_UpperBlit(imgSurf, null, winSurf, &dstRect);
-
-    // Copy the window surface to the screen
-    SDL_UpdateWindowSurface(appWin);
 
     // Polling for events
-    SDL_Event event;
     bool quit = false;
     while(!quit) {
+        SDL_PumpEvents();
+
+        // Render something
+        SDL_RenderSetLogicalSize(ren, 640, 480);
+
+        // Set colour of renderer
+        SDL_SetRenderDrawColor( ren, 255, 0, 0, 255 );
+
+        //Clear the screen to the set colour
+         SDL_RenderClear( ren );
+
+        //Show all the has been done behind the scenes
+        SDL_RenderPresent( ren );
+
+        SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 quit = true;
@@ -86,12 +95,13 @@ void main()
         }
     }
 
+    // Close and destroy the renderer
+    if (ren !is null) {
+        SDL_DestroyRenderer(ren);
+    }
+
     // Close and destroy the window
     if (appWin !is null) {
         SDL_DestroyWindow(appWin);
     }
-
-    // Tidy up
-    IMG_Quit();
-    SDL_Quit();
 }
